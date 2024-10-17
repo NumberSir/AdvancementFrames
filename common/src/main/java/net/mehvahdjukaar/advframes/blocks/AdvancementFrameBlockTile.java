@@ -1,93 +1,68 @@
 package net.mehvahdjukaar.advframes.blocks;
 
-import com.mojang.authlib.GameProfile;
 import net.mehvahdjukaar.advframes.AdvFrames;
 import net.minecraft.ChatFormatting;
-import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementType;
 import net.minecraft.advancements.DisplayInfo;
-import net.minecraft.advancements.FrameType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
 public class AdvancementFrameBlockTile extends BaseFrameBlockTile {
 
-    private String advancementId = null;
-    private DisplayInfo advancement;
+    @Nullable
+    private ResourceLocation advancementId = null;
+    @Nullable
+    private DisplayInfo advancementDisplay = null;
 
     public AdvancementFrameBlockTile(BlockPos pos, BlockState state) {
         super(AdvFrames.ADVANCEMENT_FRAME_TILE.get(), pos, state);
     }
 
-    public void setAdvancement(Advancement advancement, ServerPlayer player) {
-        this.advancement = advancement.getDisplay();
-        this.advancementId = advancement.getId().toString();
-        this.setOwner(new GameProfile(player.getUUID(), null));
+    public void setAdvancement(AdvancementHolder advancement, ServerPlayer player) {
+        this.advancementDisplay = advancement.value().display().orElse(null);
+        this.advancementId = advancement.id();
+        this.setOwner(new ResolvableProfile(player.getGameProfile()));
     }
 
 
     @Override
-    protected void saveAdditional(CompoundTag cmp) {
-        super.saveAdditional(cmp);
-        if (this.advancement != null) {
-            if (this.level instanceof ServerLevel server && this.owner != null && this.advancementId != null && !this.advancementId.isEmpty()) {
-                Advancement a = server.getServer().getAdvancements().getAdvancement(new ResourceLocation(this.advancementId));
-                Player player = this.level.getPlayerByUUID(this.owner.getId());
-                if (a == null || (player instanceof ServerPlayer sp && !sp.getAdvancements().getOrStartProgress(a).isDone())) {
+    protected void saveAdditional(CompoundTag cmp, HolderLookup.Provider registries) {
+        super.saveAdditional(cmp, registries);
+        if (this.advancementDisplay != null) {
+            if (this.level instanceof ServerLevel server && this.owner != null && this.advancementId != null && this.owner.isResolved()) {
+                AdvancementHolder advancement = server.getServer().getAdvancements().get(this.advancementId);
+                Player player = this.level.getPlayerByUUID(this.owner.id().get());
+                if (advancement == null || (player instanceof ServerPlayer sp && !sp.getAdvancements()
+                        .getOrStartProgress(advancement).isDone())) {
                     return;
                 }
             }
-
-            CompoundTag tag = new CompoundTag();
-            if (this.advancementId != null) {
-                cmp.putString("ID", this.advancementId);
-            }
-            Component title = advancement.getTitle();
-            if (title instanceof MutableComponent mc && mc.getContents() instanceof TranslatableContents tc) {
-                tag.putString("Title", tc.getKey());
-            } else {
-                tag.putString("Title", title.getString());
-            }
-            Component description = advancement.getDescription();
-            if (description instanceof MutableComponent mc && mc.getContents() instanceof TranslatableContents tc) {
-                tag.putString("Description", tc.getKey());
-            } else {
-                tag.putString("Description", description.getString());
-            }
-            tag.put("Icon", advancement.getIcon().save(new CompoundTag()));
-            tag.putInt("FrameType", advancement.getFrame().ordinal());
-            cmp.put("Advancement", tag);
+            cmp.put("Advancement", DisplayInfo.CODEC.encodeStart(NbtOps.INSTANCE, this.advancementDisplay).getOrThrow());
         }
     }
 
     @Override
-    public void load(CompoundTag cmp) {
-        super.load(cmp);
+    protected void loadAdditional(CompoundTag cmp, HolderLookup.Provider registries) {
+        super.loadAdditional(cmp, registries);
         this.advancementId = null;
-        if (cmp.contains("Advancement")) {
-            CompoundTag tag = cmp.getCompound("Advancement");
-            if (cmp.contains("ID")) {
-                this.advancementId = tag.getString("ID");
-            }
-            Component title = Component.translatable(tag.getString("Title"));
-            Component description = Component.translatable(tag.getString("Description"));
-            ItemStack icon = ItemStack.of(tag.getCompound("Icon"));
-            FrameType type = FrameType.values()[tag.getInt("FrameType")];
-            this.advancement = new DisplayInfo(icon, title, description, null, type, false, true, true);
-        }
+        var ops = registries.createSerializationContext(NbtOps.INSTANCE);
+        DisplayInfo.CODEC.parse(ops, cmp.getCompound("Advancement"))
+                .ifSuccess(a -> this.advancementDisplay = a);
         //remove
         if (level != null) {
-            var t = AdvancementFrameBlock.Type.get(advancement);
+            var t = AdvancementFrameBlock.Type.get(advancementDisplay);
             if (getBlockState().getValue(AdvancementFrameBlock.TYPE) != t) {
                 level.setBlockAndUpdate(worldPosition, getBlockState().setValue(AdvancementFrameBlock.TYPE, t));
             }
@@ -97,8 +72,8 @@ public class AdvancementFrameBlockTile extends BaseFrameBlockTile {
 
     @Override
     public ChatFormatting getTitleColor() {
-        var v = this.getAdvancement().getFrame();
-        if (v == FrameType.GOAL) {
+        var v = this.getAdvancement().getType();
+        if (v == AdvancementType.GOAL) {
             return ChatFormatting.AQUA;
         }
         return v.getChatColor();
@@ -106,16 +81,17 @@ public class AdvancementFrameBlockTile extends BaseFrameBlockTile {
 
     @Override
     public boolean isEmpty() {
-        return advancement != null;
+        return advancementDisplay != null;
     }
 
+    @Nullable
     public DisplayInfo getAdvancement() {
-        return advancement;
+        return advancementDisplay;
     }
 
     @Override
     public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        if (this.advancement != null) {
+        if (this.advancementDisplay != null) {
             return ClientboundBlockEntityDataPacket.create(this);
         }
         return null;
@@ -124,7 +100,7 @@ public class AdvancementFrameBlockTile extends BaseFrameBlockTile {
     @Nullable
     @Override
     public Component getTitle() {
-        if (advancement != null) return advancement.getTitle();
+        if (advancementDisplay != null) return advancementDisplay.getTitle();
         return null;
     }
 

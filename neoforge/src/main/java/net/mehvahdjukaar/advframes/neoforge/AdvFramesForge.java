@@ -1,11 +1,9 @@
-package net.mehvahdjukaar.advframes.forge;
+package net.mehvahdjukaar.advframes.neoforge;
 
 import net.mehvahdjukaar.advframes.AdvFrames;
 import net.mehvahdjukaar.advframes.AdvFramesClient;
 import net.mehvahdjukaar.moonlight.api.platform.PlatHelper;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.server.ServerAboutToStartEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.fml.common.Mod;
 
 /**
  * Author: MehVahdJukaar
@@ -16,15 +14,9 @@ public class AdvFramesForge {
     public AdvFramesForge() {
         AdvFrames.commonInit();
 
-        MinecraftForge.EVENT_BUS.addListener(AdvFramesForge::serverStarting);
-
         if (PlatHelper.getPhysicalSide().isClient()) {
             AdvFramesClient.init();
         }
-    }
-
-    public static void serverStarting(ServerAboutToStartEvent event) {
-        AdvFrames.onServerStarting(event.getServer());
     }
 
 }

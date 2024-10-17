@@ -55,13 +55,13 @@ public class AdvancementFrameBlockTileRenderer extends BaseFrameTileRenderer<Adv
 
             ResourceLocation tex;
             //if it doesnt have fancy nbt we can use default optimized item renderer. useful since it can
-            if (!ClientConfigs.ANIMATED_ICONS.get() && ItemStack.isSameItemSameTags(stack.getItem().getDefaultInstance(), stack)) {
+            if (!ClientConfigs.ANIMATED_ICONS.get() && ItemStack.isSameItemSameComponents(stack.getItem().getDefaultInstance(), stack)) {
                 FrameBufferBackedDynamicTexture tt = RenderedTexturesManager.requestFlatItemTexture(stack.getItem(), 64);
                 tex = tt.getTextureLocation();
                 if (!tt.isInitialized()) return;
             } else {
                 //always renders animated cause its cooler
-                int i = Objects.hash(stack.getTag(), stack.getItem());
+                int i = Objects.hash(stack.getComponents(), stack.getItem());
                 FrameBufferBackedDynamicTexture tt = RenderedTexturesManager.requestFlatItemStackTexture(AdvFrames.res("" + i), stack, 64);
                 tex = tt.getTextureLocation();
                 if (!tt.isInitialized()) return;

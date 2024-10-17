@@ -1,8 +1,9 @@
 package net.mehvahdjukaar.advframes.client;
 
 import net.mehvahdjukaar.advframes.blocks.AdvancementFrameBlockTile;
-import net.mehvahdjukaar.advframes.network.NetworkHandler;
+import net.mehvahdjukaar.advframes.network.ModMessages;
 import net.mehvahdjukaar.advframes.network.ServerBoundSetAdvancementFramePacket;
+import net.mehvahdjukaar.moonlight.api.platform.network.NetworkHelper;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -61,8 +62,10 @@ public class AdvancementSelectScreen extends AdvancementsScreen {
                         if (advancementwidget.isMouseOver(scrollX, scrollY, x, y)) {
                             AdvancementProgress p = advancementwidget.progress;
                             if (p != null && p.isDone()) {
-                                NetworkHandler.CHANNEL.sendToServer(
-                                        new ServerBoundSetAdvancementFramePacket(tile.getBlockPos(), advancementwidget.advancement));
+
+                                NetworkHelper.sendToServer(
+                                        new ServerBoundSetAdvancementFramePacket(tile.getBlockPos(),
+                                                advancementwidget.advancementNode.holder()));
                                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                                 this.onClose();
                                 return true;
@@ -76,7 +79,7 @@ public class AdvancementSelectScreen extends AdvancementsScreen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    private static final ResourceLocation WINDOW_LOCATION = new ResourceLocation("textures/gui/advancements/window.png");
+    private static final ResourceLocation WINDOW_LOCATION = ResourceLocation.withDefaultNamespace("textures/gui/advancements/window.png");
 
     @Override
     public void renderWindow(GuiGraphics graphics, int x, int y) {

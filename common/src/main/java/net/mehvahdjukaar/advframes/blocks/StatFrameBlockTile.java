@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import net.mehvahdjukaar.advframes.AdvFrames;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -13,10 +14,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stat;
 import net.minecraft.stats.StatType;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -39,7 +41,7 @@ public class StatFrameBlockTile extends BaseFrameBlockTile {
 
     public <T> void setStat(StatType<T> stat, ResourceLocation objId, ServerPlayer player) {
         this.stat = stat.get(Objects.requireNonNull(stat.getRegistry().get(objId)));
-        this.setOwner(new GameProfile(player.getUUID(), null));
+        this.setOwner(new ResolvableProfile(player.getGameProfile()));
     }
 
     @Nullable
@@ -48,12 +50,12 @@ public class StatFrameBlockTile extends BaseFrameBlockTile {
     }
 
     @Override
-    protected void saveAdditional(CompoundTag cmp) {
-        super.saveAdditional(cmp);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         if (this.stat != null) {
-            cmp.putString("Stat", BuiltInRegistries.STAT_TYPE.getKey(stat.getType()).toString());
-            cmp.putString("StatKey", getStatKey(stat).toString());
-            cmp.putInt("Value", value);
+            tag.putString("Stat", BuiltInRegistries.STAT_TYPE.getKey(stat.getType()).toString());
+            tag.putString("StatKey", getStatKey(stat).toString());
+            tag.putInt("Value", value);
         }
     }
 
@@ -62,14 +64,14 @@ public class StatFrameBlockTile extends BaseFrameBlockTile {
     }
 
     @Override
-    public void load(CompoundTag cmp) {
-        super.load(cmp);
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         this.stat = null;
-        if (cmp.contains("Stat") && cmp.contains("StatKey")) {
-            var statValue = new ResourceLocation(cmp.getString("StatKey"));
-            var type = BuiltInRegistries.STAT_TYPE.get(new ResourceLocation(cmp.getString("Stat")));
+        if (tag.contains("Stat") && tag.contains("StatKey")) {
+            var statValue = ResourceLocation.tryParse(tag.getString("StatKey"));
+            var type = BuiltInRegistries.STAT_TYPE.get(ResourceLocation.tryParse(tag.getString("Stat")));
             this.stat = getInstance(statValue, type);
-            this.value = cmp.getInt("Value");
+            this.value = tag.getInt("Value");
         }
     }
 
@@ -113,8 +115,8 @@ public class StatFrameBlockTile extends BaseFrameBlockTile {
 
     public void updateStatValue() {
         var owner = this.getOwner();
-        if (this.stat != null && owner != null) {
-            var player = level.getPlayerByUUID(owner.getId());
+        if (this.stat != null && owner != null && owner.id().isPresent()) {
+            var player = level.getPlayerByUUID(owner.id().get());
             if (player instanceof ServerPlayer serverPlayer) {
                 var stats = serverPlayer.getStats();
                 int newValue = stats.getValue(this.stat);

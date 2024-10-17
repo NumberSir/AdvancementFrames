@@ -1,54 +1,63 @@
 package net.mehvahdjukaar.advframes.network;
 
+import net.mehvahdjukaar.advframes.AdvFrames;
 import net.mehvahdjukaar.advframes.blocks.AdvancementFrameBlock;
 import net.mehvahdjukaar.advframes.blocks.AdvancementFrameBlockTile;
-import net.mehvahdjukaar.moonlight.api.platform.network.ChannelHandler;
 import net.mehvahdjukaar.moonlight.api.platform.network.Message;
-import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
 
 public class ServerBoundSetAdvancementFramePacket implements Message {
+
+    public static final TypeAndCodec<RegistryFriendlyByteBuf, ServerBoundSetAdvancementFramePacket> CODEC =
+            Message.makeType(AdvFrames.res("set_advancement_frame"), ServerBoundSetAdvancementFramePacket::new);
+
     private final BlockPos pos;
     public final ResourceLocation advancementId;
 
-    public ServerBoundSetAdvancementFramePacket(FriendlyByteBuf buf) {
+    public ServerBoundSetAdvancementFramePacket(RegistryFriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
         this.advancementId = buf.readResourceLocation();
     }
 
-    public ServerBoundSetAdvancementFramePacket(BlockPos pos, Advancement advancement) {
+    public ServerBoundSetAdvancementFramePacket(BlockPos pos, AdvancementHolder advancement) {
         this.pos = pos;
-        this.advancementId = advancement.getId();
+        this.advancementId = advancement.id();
     }
 
     @Override
-    public void writeToBuffer(FriendlyByteBuf buf) {
+    public void write(RegistryFriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
         buf.writeResourceLocation(this.advancementId);
     }
 
     @Override
-    public void handle(ChannelHandler.Context context) {
-        if (context.getSender() instanceof ServerPlayer serverPlayer) {
+    public void handle(Context context) {
+        if (context.getPlayer() instanceof ServerPlayer serverPlayer) {
             ServerLevel level = (ServerLevel) serverPlayer.level();
             BlockPos pos = this.pos;
             BlockEntity tile = level.getBlockEntity(pos);
             if (tile instanceof AdvancementFrameBlockTile te) {
-                Advancement advancement = level.getServer().getAdvancements().getAdvancement(this.advancementId);
+                AdvancementHolder advancement = level.getServer().getAdvancements().get(this.advancementId);
                 if (advancement != null) {
                     te.setAdvancement(advancement, serverPlayer);
                     //updates client
                     level.setBlockAndUpdate(pos, te.getBlockState().setValue(AdvancementFrameBlock.TYPE,
-                           AdvancementFrameBlock.Type.get(advancement.getDisplay())));
+                            AdvancementFrameBlock.Type.get(advancement.value().display().orElse(null))));
                     tile.setChanged();
                 }
             }
         }
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return CODEC.type();
     }
 }

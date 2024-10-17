@@ -1,112 +1,83 @@
 package net.mehvahdjukaar.advframes.blocks;
 
-import com.mojang.authlib.GameProfile;
-import com.mojang.authlib.minecraft.MinecraftSessionService;
+import com.mojang.authlib.properties.PropertyMap;
+import net.mehvahdjukaar.advframes.AdvFrames;
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.players.GameProfileCache;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
+
+import static net.minecraft.world.level.block.entity.SkullBlockEntity.CHECKED_MAIN_THREAD_EXECUTOR;
 
 public abstract class BaseFrameBlockTile extends BlockEntity {
 
-    protected GameProfile owner;
+    protected ResolvableProfile owner;
 
     protected BaseFrameBlockTile(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
     }
 
     @Override
-    protected void saveAdditional(CompoundTag cmp) {
-        super.saveAdditional(cmp);
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
         if (this.owner != null) {
-            cmp.putUUID("PlayerID", owner.getId());
+            tag.put("profile", ResolvableProfile.CODEC.encodeStart(NbtOps.INSTANCE, this.owner).getOrThrow());
         }
     }
 
     @Override
-    public void load(CompoundTag cmp) {
-        super.load(cmp);
-        if (cmp.contains("PlayerID")) {
-            UUID id = cmp.getUUID("PlayerID");
-            this.setOwner(new GameProfile(id, null));
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        //TODO: remove
+        if (tag.contains("PlayerID")) {
+            UUID id = tag.getUUID("PlayerID");
+            this.setOwner(new ResolvableProfile(Optional.empty(), Optional.of(id), new PropertyMap()));
+        }
+        if (tag.contains("profile")) {
+            ResolvableProfile.CODEC.parse(NbtOps.INSTANCE, tag.get("profile")).resultOrPartial((string) -> {
+                AdvFrames.LOGGER.error("Failed to load profile from player head: {}", string);
+            }).ifPresent(this::setOwner);
         }
     }
 
-    public GameProfile getOwner() {
+    public ResolvableProfile getOwner() {
         return owner;
     }
 
     @Override
-    public CompoundTag getUpdateTag() {
-        return this.saveWithoutMetadata();
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return this.saveWithoutMetadata(registries);
     }
 
-    public void setOwner(@Nullable GameProfile input) {
-        if (this.owner == null) {
-            if (input == null || !(input.isComplete())) {
-                synchronized (this) {
-                    this.owner = input;
-                }
-
-                updateGameProfile(this.owner, (gameProfile) -> this.owner = gameProfile);
-            }
+    public void setOwner(@Nullable ResolvableProfile owner) {
+        synchronized (this) {
+            this.owner = owner;
         }
-    }
 
-    // Copied from skull block tile. Needed otherwise stuff doesnt work properly. forgot why
-    private static GameProfileCache profileCache;
-    @Nullable
-    private static MinecraftSessionService sessionService;
-    @Nullable
-    private static Executor mainThreadExecutor;
-
-    public static void updateGameProfile(@Nullable GameProfile gameProfile, Consumer<GameProfile> consumer) {
-        if (gameProfile != null && gameProfile.getId() != null && (!gameProfile.isComplete() || gameProfile.getName() == null) && profileCache != null && sessionService != null) {
-            Optional<GameProfile> profile = profileCache.get(gameProfile.getId());
-            Util.backgroundExecutor().execute(() -> Util.ifElse(profile, (p) -> {
-                if (p.getName() == null) {
-                    p = sessionService.fillProfileProperties(p, true);
-                }
-                GameProfile finalGp = p;
-                mainThreadExecutor.execute(() -> {
-                    profileCache.add(finalGp);
-                    consumer.accept(finalGp);
-                });
-            }, () -> mainThreadExecutor.execute(() -> consumer.accept(gameProfile))));
+        if (this.owner != null && !this.owner.isResolved()) {
+            this.owner.resolve().thenAcceptAsync((resolvableProfile) -> {
+                this.owner = resolvableProfile;
+                this.setChanged();
+            }, CHECKED_MAIN_THREAD_EXECUTOR);
         } else {
-            consumer.accept(gameProfile);
+            this.setChanged();
         }
-    }
-
-    public static void setup(GameProfileCache gameProfileCache, MinecraftSessionService minecraftSessionService, Executor executor) {
-        profileCache = gameProfileCache;
-        sessionService = minecraftSessionService;
-        mainThreadExecutor = executor;
-    }
-
-    public static void clear() {
-        profileCache = null;
-        sessionService = null;
-        mainThreadExecutor = null;
     }
 
     @Nullable
     public Component getOwnerName() {
         if (owner != null) {
-            String name = owner.getName();
-            if (name == null) return null;
-            return Component.literal(name);
+            return owner.name().map(Component::literal).orElse(null);
         }
         return null;
     }

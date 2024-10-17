@@ -1,7 +1,8 @@
 architectury {
-    common(rootProject.enabled_platforms.split(","))
+    common(enabled_platforms.split(",")) {
+        // This means map neoforge to forge
+    }
 }
-
 loom {
     accessWidenerPath = file("src/main/resources/advancementframes.accesswidener")
 }
@@ -11,10 +12,13 @@ dependencies {
     // Do NOT use other classes from fabric loader
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
 
-    //implementation fileTree(dir: 'mods', include: '*.jar')
+    modImplementation ("net.mehvahdjukaar:moonlight:${moonlight_version}")
 
-    modImplementation("net.mehvahdjukaar:moonlight:${moonlight_version}")
-    //modImplementation("curse.maven:selene-499980:3859470")
+    modImplementation("curse.maven:jei-238222:5603591")
+    modCompileOnly("curse.maven:emi-580555:5704405")
+    //modCompileOnly("curse.maven:roughly-enough-items-310111:5435024")
+    modCompileOnly "me.shedaniel:RoughlyEnoughItems-neoforge:16.0.777"
+
 }
 
 publishing {

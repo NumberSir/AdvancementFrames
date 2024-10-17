@@ -1,11 +1,9 @@
 package net.mehvahdjukaar.advframes.blocks;
 
-import com.mojang.authlib.GameProfile;
 import net.mehvahdjukaar.advframes.AdvFrames;
 import net.mehvahdjukaar.advframes.AdvFramesClient;
 import net.mehvahdjukaar.moonlight.api.util.Utils;
 import net.minecraft.ChatFormatting;
-import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -16,11 +14,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.stats.Stat;
 import net.minecraft.stats.StatType;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Item;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.level.Level;
@@ -35,7 +32,6 @@ import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class StatFrameBlock extends BaseFrameBlock {
@@ -88,17 +84,17 @@ public class StatFrameBlock extends BaseFrameBlock {
 
 
     @Override
-    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult blockHitResult) {
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
         if (level.isClientSide) {
             if (level.getBlockEntity(pos) instanceof StatFrameBlockTile tile) {
                 if (tile.getStat() == null) {
                     AdvFramesClient.setStatScreen(tile, player);
                 } else {
-                    GameProfile owner = tile.getOwner();
-                    if (owner != null && owner.getName() != null) {
+                    ResolvableProfile owner = tile.getOwner();
+                    if (owner != null && owner.isResolved()) {
 
                         Stat stat = tile.getStat();
-                        Component name = Component.literal(owner.getName()).withStyle(ChatFormatting.GOLD);
+                        Component name = tile.getOwnerName().copy().withStyle(ChatFormatting.GOLD);
                         Component title = getStatComponent(stat);
                         Component number = Component.literal(stat.format(tile.getValue())).withStyle(ChatFormatting.DARK_RED);
                         player.displayClientMessage(Component.translatable("advancementframes.message.stat",
@@ -123,18 +119,16 @@ public class StatFrameBlock extends BaseFrameBlock {
         Object value = stat.getValue();
         MutableComponent text;
         ResourceLocation statId = BuiltInRegistries.STAT_TYPE.getKey(type);
-        if (value instanceof ItemLike i) {
-            text = Component.translatable(
+        switch (value) {
+            case ItemLike i -> text = Component.translatable(
                     "stat.advancementframes." + statId.getPath(), i.asItem().getDescription().getString());
-
-        } else if (value instanceof EntityType<?> e) {
-            text = Component.translatable(
+            case EntityType<?> e -> text = Component.translatable(
                     "stat.advancementframes." + statId.getPath(), e.getDescription().getString());
-        } else if (value instanceof ResourceLocation) {
-            String string = stat.getValue().toString();
-            text = Component.translatable("stat." + string.replace(':', '.'));
-        } else {
-            text = Component.literal("Unsupported Stat");
+            case ResourceLocation resourceLocation -> {
+                String string = stat.getValue().toString();
+                text = Component.translatable("stat." + string.replace(':', '.'));
+            }
+            default -> text = Component.literal("Unsupported Stat");
         }
         return text;
     }

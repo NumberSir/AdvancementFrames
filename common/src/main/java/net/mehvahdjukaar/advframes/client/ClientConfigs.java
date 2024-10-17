@@ -25,7 +25,7 @@ public class ClientConfigs {
         STAT_UPDATE_INTERVAL = builder.comment("How ofter the client will request stats update from server in seconds")
                         .define("stat_update_interval", 60, 1, 1000);
         builder.pop();
-        builder.buildAndRegister();
+        builder.build();
 
     }
 

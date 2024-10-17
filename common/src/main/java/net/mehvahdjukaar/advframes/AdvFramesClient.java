@@ -8,6 +8,7 @@ import net.mehvahdjukaar.advframes.blocks.StatFrameBlockTile;
 import net.mehvahdjukaar.advframes.client.*;
 import net.mehvahdjukaar.advframes.integration.CreateCompat;
 import net.mehvahdjukaar.moonlight.api.client.model.NestedModelLoader;
+import net.mehvahdjukaar.moonlight.api.client.util.RenderUtil;
 import net.mehvahdjukaar.moonlight.api.platform.ClientHelper;
 import net.mehvahdjukaar.moonlight.api.platform.PlatHelper;
 import net.minecraft.client.KeyMapping;
@@ -15,14 +16,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.stats.Stat;
 import net.minecraft.world.entity.player.Player;
 
 public class AdvFramesClient {
-    public static final ResourceLocation TASK_MODEL = AdvFrames.res("item/task");
-    public static final ResourceLocation GOAL_MODEL = AdvFrames.res("item/goal");
-    public static final ResourceLocation CHALLENGE_MODEL = AdvFrames.res("item/challenge");
+    public static final ModelResourceLocation TASK_MODEL = RenderUtil.getStandaloneModelLocation(AdvFrames.res("item/task"));
+    public static final ModelResourceLocation GOAL_MODEL = RenderUtil.getStandaloneModelLocation(AdvFrames.res("item/goal"));
+    public static final ModelResourceLocation CHALLENGE_MODEL = RenderUtil.getStandaloneModelLocation(AdvFrames.res("item/challenge"));
     protected static long gameTime;
 
     public static void init() {
